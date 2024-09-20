@@ -1,1 +1,32 @@
-# Your Solution
+version: '3.8'
+
+services:
+  book_catalog:
+    build: ./book_catalog
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql://root:3dlKTA7z0cfIzGnvCK3xJekoVV0tVUTI@dpg-cri863bqf0us739q6rkg-a.oregon-postgres.render.com/book_rjzk
+
+  inventory_management:
+    build: ./inventory_management
+    ports:
+      - "8001:8001"
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql://root:FHrIJBu7gmrWXEd5d86D4ohgnt1jugGQ@dpg-crecr1bv2p9s73cu3v50-a.oregon-postgres.render.com/inventory_db_fqjo
+
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: hgy9ldAjaytx7XpsdfUTtW2Vsiqq9ZXp
+      POSTGRES_DB: book_catalog_db_ayl2
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
