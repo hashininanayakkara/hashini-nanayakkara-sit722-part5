@@ -1,82 +1,80 @@
-# Deployment for book_catalog microservice
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: book-catalog-deployment
-  labels:
-    app: book-catalog
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: book-catalog
-  template:
-    metadata:
-      labels:
-        app: book-catalog
-    spec:
-      containers:
-        - name: book-catalog
-          image: flixtuberegistrychapter7.azurecr.io/book_catalog:latest
-          ports:
-            - containerPort: 8000
-          env:
-            - name: DATABASE_URL
-              value: "postgresql://root:3dlKTA7z0cfIzGnvCK3xJekoVV0tVUTI@dpg-cri863bqf0us739q6rkg-a.oregon-postgres.render.com/book_rjzk"
+name: Deploy Microservices
 
----
-# Service for book_catalog microservice
-apiVersion: v1
-kind: Service
-metadata:
-  name: book-catalog-service
-spec:
-  selector:
-    app: book-catalog
-  ports:
-    - protocol: TCP
-      port: 8000
-      targetPort: 8000
-  type: LoadBalancer
+on:
+  push:
+    branches:
+      - main
 
----
-# Deployment for inventory_management microservice
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: inventory-management-deployment
-  labels:
-    app: inventory-management
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: inventory-management
-  template:
-    metadata:
-      labels:
-        app: inventory-management
-    spec:
-      containers:
-        - name: inventory-management
-          image: flixtuberegistrychapter7.azurecr.io/inventory_management:latest
-          ports:
-            - containerPort: 8001
-          env:
-            - name: DATABASE_URL
-              value: "postgresql://root:FHrIJBu7gmrWXEd5d86D4ohgnt1jugGQ@dpg-crecr1bv2p9s73cu3v50-a.oregon-postgres.render.com/inventory_db_fqjo"
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
 
----
-# Service for inventory_management microservice
-apiVersion: v1
-kind: Service
-metadata:
-  name: inventory-management-service
-spec:
-  selector:
-    app: inventory-management
-  ports:
-    - protocol: TCP
-      port: 8001
-      targetPort: 8001
-  type: LoadBalancer
+    steps:
+    # Check out the code from the repository
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    # Set up Docker Buildx for multi-platform builds
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    # Log in to Docker Hub (or your chosen registry)
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    # Build Docker images for microservices
+    - name: Build Docker images
+      run: |
+        docker build -t yourusername/book_catalog_image ./book_catalog
+        docker build -t yourusername/inventory_management_image ./inventory_management
+
+    # Push Docker images to Docker Hub (or your chosen registry)
+    - name: Push Docker images
+      run: |
+        docker push yourusername/book_catalog_image
+        docker push yourusername/inventory_management_image
+
+  deploy_infrastructure:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+
+    steps:
+    # Check out the code from the repository
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    # Set up Terraform
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v1
+
+    # Initialize Terraform
+    - name: Terraform Init
+      run: terraform init
+
+    # Apply Terraform configuration to provision Azure resources
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
+
+  deploy_microservices:
+    needs: deploy_infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+    # Check out the code from the repository
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    # Set up kubectl
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v1
+
+    # Deploy microservices to Azure Kubernetes Service (AKS)
+    - name: Deploy to AKS
+      run: |
+        kubectl apply -f k8s/book_catalog_deployment.yaml
+        kubectl apply -f k8s/book_catalog_service.yaml
+        kubectl apply -f k8s/inventory_management_deployment.yaml
+        kubectl apply -f k8s/inventory_management_service.yaml
