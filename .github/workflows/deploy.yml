@@ -1,26 +1,26 @@
-name: Deploy Microservices
+name: Deploy to Azure Kubernetes Service (AKS)
 
 on:
   push:
     branches:
-      - main
+      - main  # Triggers on push to the main branch
 
 jobs:
-  build_and_push:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    # Check out the code from the repository
-    - name: Checkout repository
-      uses: actions/checkout@v2
+    # Checkout the repository
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-    # Set up Docker Buildx for multi-platform builds
+    # Set up Docker
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+      uses: docker/setup-buildx-action@v2
 
-    # Log in to Docker Hub (or your chosen registry)
+    # Log in to Docker Hub or Azure Container Registry (ACR)
     - name: Log in to Docker Hub
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
@@ -28,53 +28,36 @@ jobs:
     # Build Docker images for microservices
     - name: Build Docker images
       run: |
-        docker build -t yourusername/book_catalog_image ./book_catalog
-        docker build -t yourusername/inventory_management_image ./inventory_management
+        docker-compose build
 
-    # Push Docker images to Docker Hub (or your chosen registry)
+    # Push Docker images to Docker Hub or ACR
     - name: Push Docker images
       run: |
-        docker push yourusername/book_catalog_image
-        docker push yourusername/inventory_management_image
-
-  deploy_infrastructure:
-    needs: build_and_push
-    runs-on: ubuntu-latest
-
-    steps:
-    # Check out the code from the repository
-    - name: Checkout repository
-      uses: actions/checkout@v2
+        docker-compose push
 
     # Set up Terraform
     - name: Set up Terraform
-      uses: hashicorp/setup-terraform@v1
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.5.0 # Update to the version you need
 
     # Initialize Terraform
     - name: Terraform Init
       run: terraform init
+      working-directory: ./terraform
 
-    # Apply Terraform configuration to provision Azure resources
+    # Apply Terraform scripts to provision AKS and other resources
     - name: Terraform Apply
       run: terraform apply -auto-approve
+      working-directory: ./terraform
 
-  deploy_microservices:
-    needs: deploy_infrastructure
-    runs-on: ubuntu-latest
+    # Configure kubectl with Azure credentials to access AKS
+    - name: Set up AKS credentials
+      run: |
+        az aks get-credentials --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} --name ${{ secrets.AKS_CLUSTER_NAME }}
 
-    steps:
-    # Check out the code from the repository
-    - name: Checkout repository
-      uses: actions/checkout@v2
-
-    # Set up kubectl
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v1
-
-    # Deploy microservices to Azure Kubernetes Service (AKS)
+    # Deploy microservices to AKS
     - name: Deploy to AKS
       run: |
-        kubectl apply -f k8s/book_catalog_deployment.yaml
-        kubectl apply -f k8s/book_catalog_service.yaml
-        kubectl apply -f k8s/inventory_management_deployment.yaml
-        kubectl apply -f k8s/inventory_management_service.yaml
+        kubectl apply -f ./kubernetes/book_catalog-deployment.yaml
+        kubectl apply -f ./kubernetes/inventory_management-deployment.yaml
